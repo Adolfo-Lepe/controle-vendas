@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Vendas e Produção</title>
+    <!-- Importando o Chart.js para o gráfico de vendas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1100px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #2c3e50; }
+        form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; background: #fafafa; padding: 20px; border-radius: 6px; border: 1px solid #eee; }
+        .full-width { grid-column: span 2; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #27ae60; color: white; padding: 12px 20px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; grid-column: span 2; }
+        button:hover { background: #219653; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #f8f9fa; }
+        .chart-container { margin-top: 40px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee; }
+        .status-atrasado { color: #c0392b; font-weight: bold; }
+        .status-andamento { color: #d35400; font-weight: bold; }
+        .status-ok { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Controle de Vendas e Produção</h1>
+    
+    <!-- Formulário de Cadastro -->
+    <h2>Novo Cadastro / Pedido</h2>
+    <form id="formVenda">
+        <div>
+            <label>Nome / Razão Social:</label>
+            <input type="text" id="nome_razao_social" required>
+        </div>
+        <div>
+            <label>CPF / CNPJ:</label>
+            <input type="text" id="cpf_cnpj">
+        </div>
+        <div class="full-width">
+            <label>Endereço:</label>
+            <input type="text" id="endereco">
+        </div>
+        <div>
+            <label>Cidade:</label>
+            <input type="text" id="cidade">
+        </div>
+        <div>
+            <label>Bairro:</label>
+            <input type="text" id="bairro">
+        </div>
+        <div>
+            <label>CEP:</label>
+            <input type="text" id="cep">
+        </div>
+        <div>
+            <label>E-mail:</label>
+            <input type="email" id="email">
+        </div>
+        <div>
+            <label>Data de Nascimento:</label>
+            <input type="date" id="data_nascimento">
+        </div>
+        <div>
+            <label>Data de Ordenação:</label>
+            <input type="date" id="data_ordenacao">
+        </div>
+        <div>
+            <label>Diocese / Paróquia:</label>
+            <input type="text" id="diocese_paroquia">
+        </div>
+        <div>
+            <label>Telefone da Paróquia:</label>
+            <input type="text" id="telefone_paroquia">
+        </div>
+        <div>
+            <label>Nome do Produto:</label>
+            <input type="text" id="nome_produto" required>
+        </div>
+        <div class="full-width">
+            <label>Observações:</label>
+            <textarea id="observacoes" rows="2"></textarea>
+        </div>
+        <div>
+            <label>Forma de Pagamento:</label>
+            <input type="text" id="forma_pagamento">
+        </div>
+        <div>
+            <label>Valor (R$):</label>
+            <input type="number" step="0.01" id="valor" required>
+        </div>
+        <div>
+            <label>Data da Compra:</label>
+            <input type="date" id="data_compra" required>
+        </div>
+        <div>
+            <label>Data Estimada de Entrega:</label>
+            <input type="date" id="data_estimada_entrega" required>
+        </div>
+        <div>
+            <label>Status Confecção:</label>
+            <select id="status_confeccao">
+                <option value="Pendente">Pendente</option>
+                <option value="Em Produção">Em Produção</option>
+                <option value="Atrasado">Atrasado</option>
+                <option value="Concluído">Concluído</option>
+            </select>
+        </div>
+        <div>
+            <label>Status Entrega:</label>
+            <select id="status_entrega">
+                <option value="Preparando">Preparando</option>
+                <option value="Saiu para Entrega">Saiu para Entrega</option>
+                <option value="Entregue">Entregue</option>
+            </select>
+        </div>
+        <button type="submit">Salvar Venda e Pedido</button>
+    </form>
+
+    <!-- Gráfico de Vendas Mensais -->
+    <div class="chart-container">
+        <h2>Gráfico de Vendas Mensais</h2>
+        <canvas id="graficoVendas" height="100"></canvas>
+    </div>
+
+    <!-- Tabela de Pedidos -->
+    <h2 style="margin-top: 40px;">Acompanhamento de Pedidos</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Produto</th>
+                <th>Data Compra</th>
+                <th>Entrega Estimada</th>
+                <th>Valor</th>
+                <th>Confecção</th>
+                <th>Entrega</th>
+            </tr>
+        </thead>
+        <tbody id="tabelaPedidos">
+            <!-- Preenchido via JavaScript -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    // Envio do formulário
+    document.getElementById('formVenda').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const dados = {
+            nome_razao_social: document.getElementById('nome_razao_social').value,
+            cpf_cnpj: document.getElementById('cpf_cnpj').value,
+            endereco: document.getElementById('endereco').value,
+            cidade: document.getElementById('cidade').value,
+            bairro: document.getElementById('bairro').value,
+            cep: document.getElementById('cep').value,
+            email: document.getElementById('email').value,
+            data_nascimento: document.getElementById('data_nascimento').value || null,
+            data_ordenacao: document.getElementById('data_ordenacao').value || null,
+            diocese_paroquia: document.getElementById('diocese_paroquia').value,
+            telefone_paroquia: document.getElementById('telefone_paroquia').value,
+            nome_produto: document.getElementById('nome_produto').value,
+            observacoes: document.getElementById('observacoes').value,
+            forma_pagamento: document.getElementById('forma_pagamento').value,
+            data_compra: document.getElementById('data_compra').value,
+            data_estimada_entrega: document.getElementById('data_estimada_entrega').value,
+            valor: parseFloat(document.getElementById('valor').value),
+            status_confeccao: document.getElementById('status_confeccao').value,
+            status_entrega: document.getElementById('status_entrega').value
+        };
+
+        const response = await fetch('/api/vendas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+
+        const resultado = await response.json();
+        if (resultado.sucesso) {
+            alert('Cadastrado com sucesso!');
+            document.getElementById('formVenda').reset();
+            carregarDados();
+        } else {
+            alert('Erro ao cadastrar: ' + resultado.erro);
+        }
+    });
+
+    let meuGrafico = null;
+
+    // Carregar dados e montar tabela/gráfico
+    async function carregarDados() {
+        const response = await fetch('/api/pedidos');
+        const pedidos = await response.json();
+
+        const tbody = document.getElementById('tabelaPedidos');
+        tbody.innerHTML = '';
+
+        // Agrupar vendas por mês para o gráfico
+        const vendasPorMes = {};
+
+        pedidos.forEach(p => {
+            // Linha da tabela
+            const tr = document.createElement('tr');
+            
+            let classeConfeccao = 'status-ok';
+            if (p.status_confeccao === 'Atrasado') classeConfeccao = 'status-atrasado';
+            if (p.status_confeccao === 'Pendente' || p.status_confeccao === 'Em Produção') classeConfeccao = 'status-andamento';
+
+            tr.innerHTML = `
+                <td>${p.nome_razao_social}</td>
+                <td>${p.nome_produto}</td>
+                <td>${p.data_compra ? p.data_compra.split('T')[0] : ''}</td>
+                <td>${p.data_estimada_entrega ? p.data_estimada_entrega.split('T')[0] : ''}</td>
+                <td>R$ ${parseFloat(p.valor).toFixed(2)}</td>
+                <td class="${classeConfeccao}">${p.status_confeccao}</td>
+                <td>${p.status_entrega}</td>
+            `;
+            tbody.appendChild(tr);
+
+            // Processar dados para o gráfico de vendas mensais
+            if (p.data_compra) {
+                const mesAno = p.data_compra.substring(0, 7); // Formato YYYY-MM
+                vendasPorMes[mesAno] = (vendasPorMes[mesAno] || 0) + parseFloat(p.valor);
+            }
+        });
+
+        // Ordenar os meses cronologicamente
+        const mesesOrdenados = Object.keys(vendasPorMes).sort();
+        const valoresTotais = mesesOrdenados.map(m => vendasPorMes[m]);
+
+        // Renderizar o gráfico
+        const ctx = document.getElementById('graficoVendas').getContext('2d');
+        if (meuGrafico) meuGrafico.destroy();
+
+        meuGrafico = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: mesesOrdenados,
+                datasets: [{
+                    label: 'Total de Vendas (R$)',
+                    data: valoresTotais,
+                    backgroundColor: 'rgba(39, 174, 96, 0.6)',
+                    borderColor: 'rgba(39, 174, 96, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    carregarDados();
+</script>
+
+</body>
+</html>
