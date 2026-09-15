@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/vendas", "destination": "/api/vendas.js" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}
