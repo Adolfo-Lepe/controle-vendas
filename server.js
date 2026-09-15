@@ -12,47 +12,82 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Rota para salvar todas as informações do seu formulário
+// Criar a tabela automaticamente se ela não existir no Neon
+async function criarTabela() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pedidos (
+        id SERIAL PRIMARY KEY,
+        nome_razao_social TEXT,
+        cpf_cnpj TEXT,
+        endereco TEXT,
+        cidade TEXT,
+        bairro TEXT,
+        cep TEXT,
+        email TEXT,
+        data_nascimento DATE,
+        data_ordenacao DATE,
+        diocese_paroquia TEXT,
+        telefone_paroquia TEXT,
+        nome_produto TEXT,
+        observacoes TEXT,
+        forma_pagamento TEXT,
+        data_compra DATE,
+        data_estimada_entrega DATE,
+        valor NUMERIC,
+        status_confeccao TEXT,
+        status_entrega TEXT
+      );
+    `);
+    console.log("Tabela 'pedidos' verificada/criada com sucesso no Neon!");
+  } catch (err) {
+    console.error("Erro ao criar tabela:", err);
+  }
+}
+criarTabela();
+
+// Rota para cadastrar (POST) compatível com o seu HTML
 app.post('/api/vendas', async (req, res) => {
   const {
-    nome, cpf_cnpj, endereco, cidade, bairro, cep, email,
+    nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
     data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia,
-    nome_produto, observacoes, forma_pagamento, valor,
-    data_compra, data_entrega, status_confec, status_entrega
+    nome_produto, observacoes, forma_pagamento, data_compra,
+    data_estimada_entrega, valor, status_confeccao, status_entrega
   } = req.body;
 
   try {
     const query = `
       INSERT INTO pedidos (
-        nome, cpf_cnpj, endereco, cidade, bairro, cep, email,
+        nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
         data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia,
-        nome_produto, observacoes, forma_pagamento, valor,
-        data_compra, data_entrega, status_confec, status_entrega
+        nome_produto, observacoes, forma_pagamento, data_compra,
+        data_estimada_entrega, valor, status_confeccao, status_entrega
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *;
     `;
     
     const values = [
-      nome, cpf_cnpj, endereco, cidade, bairro, cep, email,
+      nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
       data_nascimento || null, data_ordenacao || null, diocese_paroquia, telefone_paroquia,
-      nome_produto, observacoes, forma_pagamento, valor ? parseFloat(valor.toString().replace(',', '.')) : 0,
-      data_compra || null, data_entrega || null, status_confec, status_entrega
+      nome_produto, observacoes, forma_pagamento, data_compra || null,
+      data_estimada_entrega || null, valor ? parseFloat(valor) : 0, status_confeccao, status_entrega
     ];
 
     const result = await pool.query(query, values);
-    res.json({ success: true, data: result.rows[0] });
+    res.json({ sucesso: true, dados: result.rows[0] });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.json({ sucesso: false, erro: err.message });
   }
 });
 
-// Rota para listar os pedidos salvos
-app.get('/api/vendas', async (req, res) => {
+// Rotas para buscar os pedidos salvos (atendendo tanto /api/pedidos quanto /api/vendas)
+app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM pedidos ORDER BY id DESC');
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
