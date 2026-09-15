@@ -6,6 +6,15 @@ const pool = new Pool({
 });
 
 module.exports = async (req, res) => {
+  // Permite requisições de qualquer origem
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method === 'POST') {
     const {
       nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
@@ -18,7 +27,7 @@ module.exports = async (req, res) => {
       const clienteResult = await pool.query(
         `INSERT INTO clientes (nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email, data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia) 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-        [nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email, data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia]
+        [nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email, data_nascimento || null, data_ordenacao || null, diocese_paroquia, telefone_paroquia]
       );
       const clienteId = clienteResult.rows[0].id;
 
@@ -48,5 +57,5 @@ module.exports = async (req, res) => {
     }
   }
 
-  res.status(405).json({ erro: 'Método não permitido' });
+  return res.status(405).json({ erro: 'Método não permitido' });
 };
