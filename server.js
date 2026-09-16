@@ -12,93 +12,54 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Garante que a tabela tem todas as colunas exigidas pelo formulário
+// Configura as tabelas relacionalmente: Clientes e Pedidos
 async function configurarBanco() {
   try {
+    // 1. Tabela de Clientes com ID automático
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS pedidos (
-        id SERIAL PRIMARY KEY
+      CREATE TABLE IF NOT EXISTS clientes (
+        id SERIAL PRIMARY KEY,
+        nome_razao_social TEXT NOT NULL,
+        cpf_cnpj TEXT,
+        endereco TEXT,
+        cidade TEXT,
+        bairro TEXT,
+        cep TEXT,
+        email TEXT,
+        data_nascimento DATE,
+        data_ordenacao DATE,
+        diocese_paroquia TEXT,
+        telefone_paroquia TEXT
       );
     `);
 
-    // Lista de colunas e tipos que a tabela precisa ter
-    const colunas = [
-      "nome_razao_social TEXT",
-      "cpf_cnpj TEXT",
-      "endereco TEXT",
-      "cidade TEXT",
-      "bairro TEXT",
-      "cep TEXT",
-      "email TEXT",
-      "data_nascimento DATE",
-      "data_ordenacao DATE",
-      "diocese_paroquia TEXT",
-      "telefone_paroquia TEXT",
-      "nome_produto TEXT",
-      "observacoes TEXT",
-      "forma_pagamento TEXT",
-      "data_compra DATE",
-      "data_estimada_entrega DATE",
-      "valor NUMERIC",
-      "status_confeccao TEXT",
-      "status_entrega TEXT"
-    ];
+    // 2. Tabela de Pedidos vinculada ao cliente (cliente_id)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pedidos (
+        id SERIAL PRIMARY KEY,
+        cliente_id INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+        nome_produto TEXT NOT NULL,
+        observacoes TEXT,
+        forma_pagamento TEXT,
+        data_compra DATE,
+        data_estimada_entrega DATE,
+        valor NUMERIC,
+        status_confeccao TEXT,
+        status_entrega TEXT
+      );
+    `);
 
-    // Adiciona cada coluna caso ela ainda não exista na tabela
-    for (let colunaDef of colunas) {
-      const nomeColuna = colunaDef.split(" ")[0];
-      const tipoColuna = colunaDef.split(" ")[1];
-      await pool.query(`
-        ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ${nomeColuna} ${tipoColuna};
-      `).catch(() => {}); // Ignora se já existir
-    }
-
-    console.log("Banco de dados sincronizado com sucesso!");
+    console.log("Banco de dados estruturado com sucesso (Clientes + Pedidos)!");
   } catch (err) {
     console.error("Erro ao configurar banco:", err);
   }
 }
 configurarBanco();
 
-// Rota para cadastrar (POST) compatível com o seu HTML
-app.post('/api/vendas', async (req, res) => {
-  const {
-    nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
-    data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia,
-    nome_produto, observacoes, forma_pagamento, data_compra,
-    data_estimada_entrega, valor, status_confeccao, status_entrega
-  } = req.body;
-
+// Rota para buscar todos os clientes cadastrados (para o autocompletar)
+app.get('/api/clientes', async (req, res) => {
   try {
-    const query = `
-      INSERT INTO pedidos (
-        nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
-        data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia,
-        nome_produto, observacoes, forma_pagamento, data_compra,
-        data_estimada_entrega, valor, status_confeccao, status_entrega
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-      RETURNING *;
-    `;
-    
-    const values = [
-      nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
-      data_nascimento || null, data_ordenacao || null, diocese_paroquia, telefone_paroquia,
-      nome_produto, observacoes, forma_pagamento, data_compra || null,
-      data_estimada_entrega || null, valor ? parseFloat(valor) : 0, status_confeccao, status_entrega
-    ];
-
-    const result = await pool.query(query, values);
-    res.json({ sucesso: true, dados: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.json({ sucesso: false, erro: err.message });
-  }
-});
-
-// Rotas para buscar os pedidos salvos
-app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM pedidos ORDER BY id DESC');
+    const result = await pool.query('SELECT * FROM clientes ORDER BY nome_razao_social ASC');
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -106,17 +67,87 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   }
 });
 
-// Rota para excluir um pedido/venda por ID
+// Rota para cadastrar venda (Salva ou reutiliza o cliente e cria o pedido)
+app.post('/api/vendas', async (req, res) => {
+  const {
+    nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
+    data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia,
+    nome_produto, observacoes, forma_pagamento, data_compra,
+    data_estimada_entrega, valor, status_confeccao, status_entrega, cliente_id
+  } = req.body;
+
+  try {
+    let idClienteFinal = cliente_id;
+
+    // Se não veio um ID de cliente existente, criamos um novo cliente
+    if (!idClienteFinal) {
+      const clienteQuery = `
+        INSERT INTO clientes (
+          nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
+          data_nascimento, data_ordenacao, diocese_paroquia, telefone_paroquia
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id;
+      `;
+      const clienteValues = [
+        nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
+        data_nascimento || null, data_ordenacao || null, diocese_paroquia, telefone_paroquia
+      ];
+      const clienteRes = await pool.query(clienteQuery, clienteValues);
+      idClienteFinal = clienteRes.rows[0].id;
+    }
+
+    // Cria o pedido vinculado ao ID do cliente
+    const pedidoQuery = `
+      INSERT INTO pedidos (
+        cliente_id, nome_produto, observacoes, forma_pagamento, data_compra,
+        data_estimada_entrega, valor, status_confeccao, status_entrega
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *;
+    `;
+    const pedidoValues = [
+      idClienteFinal, nome_produto, observacoes, forma_pagamento,
+      data_compra || null, data_estimada_entrega || null,
+      valor ? parseFloat(valor) : 0, status_confeccao, status_entrega
+    ];
+
+    const pedidoRes = await pool.query(pedidoQuery, pedidoValues);
+    res.json({ sucesso: true, dados: pedidoRes.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.json({ sucesso: false, erro: err.message });
+  }
+});
+
+// Rota para buscar os pedidos salvos (juntando com os dados do cliente)
+app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
+  try {
+    const query = `
+      SELECT p.*, c.nome_razao_social, c.cpf_cnpj, c.endereco, c.cidade, 
+             c.bairro, c.cep, c.email, c.data_nascimento, c.data_ordenacao, 
+             c.diocese_paroquia, c.telefone_paroquia
+      FROM pedidos p
+      JOIN clientes c ON p.cliente_id = c.id
+      ORDER BY p.id DESC;
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rota para excluir um pedido por ID
 app.delete('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query('DELETE FROM pedidos WHERE id = $1 RETURNING *', [id]);
     
     if (result.rowCount === 0) {
-      return res.status(404).json({ sucesso: false, erro: 'Cadastro não encontrado.' });
+      return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
     }
 
-    res.json({ sucesso: true, mensagem: 'Cadastro excluído com sucesso!' });
+    res.json({ sucesso: true, mensagem: 'Pedido excluído com sucesso!' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ sucesso: false, erro: err.message });
