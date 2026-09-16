@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Vendas e Produção</title>
-    <!-- Importando o Chart.js para o gráfico de vendas -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
@@ -23,9 +22,14 @@
         .status-atrasado { color: #c0392b; font-weight: bold; }
         .status-andamento { color: #d35400; font-weight: bold; }
         .status-ok { color: #27ae60; font-weight: bold; }
-        .btn-excluir { background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; grid-column: auto; }
+        .acoes-btns { display: flex; gap: 5px; }
+        .btn-editar { background-color: #f39c12; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .btn-editar:hover { background-color: #d68910; }
+        .btn-excluir { background-color: #e74c3c; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; }
         .btn-excluir:hover { background-color: #c0392b; }
         .aviso-cliente { grid-column: span 2; background: #e8f8f5; border: 1px solid #a3e4d7; padding: 10px; border-radius: 4px; color: #117a65; font-size: 13px; }
+        .btn-cancelar { background: #7f8c8d; margin-top: 5px; display: none; }
+        .btn-cancelar:hover { background: #626567; }
     </style>
 </head>
 <body>
@@ -33,21 +37,21 @@
 <div class="container">
     <h1>Controle de Vendas e Produção</h1>
     
-    <!-- Formulário de Cadastro -->
-    <h2>Novo Cadastro / Pedido</h2>
+    <h2><span id="tituloForm">Novo Cadastro / Pedido</span></h2>
     <form id="formVenda">
-        <div class="aviso-cliente">
+        <input type="hidden" id="pedido_id">
+
+        <div class="aviso-cliente" id="avisoClienteBox">
             💡 <strong>Dica:</strong> Se o cliente já comprou antes, selecione-o abaixo para preencher os dados automaticamente, ou deixe em branco para cadastrar um novo.
         </div>
 
-        <div class="full-width">
+        <div class="full-width" id="blocoSelectCliente">
             <label>Selecione um Cliente Existente (Opcional):</label>
             <select id="selectClienteExistente" onchange="preencherDadosCliente()">
                 <option value="">-- Novo Cliente / Digitar manualmente --</option>
             </select>
         </div>
 
-        <!-- ID oculto para sabermos se estamos usando um cliente existente -->
         <input type="hidden" id="cliente_id">
 
         <div>
@@ -135,16 +139,15 @@
                 <option value="Entregue">Entregue</option>
             </select>
         </div>
-        <button type="submit">Salvar Venda e Pedido</button>
+        <button type="submit" id="btnSalvar">Salvar Venda e Pedido</button>
+        <button type="button" class="btn-cancelar" id="btnCancelar" onclick="cancelarEdicao()">Cancelar Edição</button>
     </form>
 
-    <!-- Gráfico de Vendas Mensais -->
     <div class="chart-container">
         <h2>Gráfico de Vendas Mensais</h2>
         <canvas id="graficoVendas" height="100"></canvas>
     </div>
 
-    <!-- Tabela de Pedidos -->
     <h2 style="margin-top: 40px;">Acompanhamento de Pedidos</h2>
     <table>
         <thead>
@@ -160,13 +163,13 @@
             </tr>
         </thead>
         <tbody id="tabelaPedidos">
-            <!-- Preenchido via JavaScript -->
         </tbody>
     </table>
 </div>
 
 <script>
     let listaClientesGlobal = [];
+    let listaPedidosGlobal = [];
 
     async function carregarClientesDropdown() {
         try {
@@ -225,6 +228,8 @@
     document.getElementById('formVenda').addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        const pedidoId = document.getElementById('pedido_id').value;
+        
         const dados = {
             cliente_id: document.getElementById('cliente_id').value || null,
             nome_razao_social: document.getElementById('nome_razao_social').value,
@@ -248,21 +253,28 @@
             status_entrega: document.getElementById('status_entrega').value
         };
 
-        const response = await fetch('/api/vendas', {
-            method: 'POST',
+        let url = '/api/vendas';
+        let method = 'POST';
+
+        if (pedidoId) {
+            url = `/api/vendas/${pedidoId}`;
+            method = 'PUT';
+        }
+
+        const response = await fetch(url, {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dados)
         });
 
         const resultado = await response.json();
         if (resultado.sucesso) {
-            alert('Pedido cadastrado com sucesso!');
-            document.getElementById('formVenda').reset();
-            document.getElementById('cliente_id').value = '';
+            alert(pedidoId ? 'Pedido atualizado com sucesso!' : 'Pedido cadastrado com sucesso!');
+            cancelarEdicao();
             carregarClientesDropdown();
             carregarDados();
         } else {
-            alert('Erro ao cadastrar: ' + resultado.erro);
+            alert('Erro ao salvar: ' + resultado.erro);
         }
     });
 
@@ -270,14 +282,14 @@
 
     async function carregarDados() {
         const response = await fetch('/api/pedidos');
-        const pedidos = await response.json();
+        listaPedidosGlobal = await response.json();
 
         const tbody = document.getElementById('tabelaPedidos');
         tbody.innerHTML = '';
 
         const vendasPorMes = {};
 
-        pedidos.forEach(p => {
+        listaPedidosGlobal.forEach(p => {
             const tr = document.createElement('tr');
             
             let classeConfeccao = 'status-ok';
@@ -293,7 +305,10 @@
                 <td class="${classeConfeccao}">${p.status_confeccao}</td>
                 <td>${p.status_entrega}</td>
                 <td>
-                    <button class="btn-excluir" onclick="excluirCadastro(${p.id})">Excluir</button>
+                    <div class="acoes-btns">
+                        <button class="btn-editar" onclick="prepararEdicao(${p.id})">Editar</button>
+                        <button class="btn-excluir" onclick="excluirCadastro(${p.id})">Excluir</button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -327,6 +342,54 @@
                 scales: { y: { beginAtZero: true } }
             }
         });
+    }
+
+    function prepararEdicao(id) {
+        const pedido = listaPedidosGlobal.find(p => p.id === id);
+        if (!pedido) return;
+
+        document.getElementById('pedido_id').value = pedido.id;
+        document.getElementById('tituloForm').textContent = `Editando Pedido #${pedido.id} (${pedido.nome_produto})`;
+        document.getElementById('btnSalvar').textContent = 'Salvar Alterações';
+        document.getElementById('btnCancelar').style.display = 'block';
+
+        document.getElementById('blocoSelectCliente').style.display = 'none';
+        document.getElementById('avisoClienteBox').style.display = 'none';
+
+        document.getElementById('cliente_id').value = pedido.cliente_id;
+        document.getElementById('nome_razao_social').value = pedido.nome_razao_social || '';
+        document.getElementById('cpf_cnpj').value = pedido.cpf_cnpj || '';
+        document.getElementById('endereco').value = pedido.endereco || '';
+        document.getElementById('cidade').value = pedido.cidade || '';
+        document.getElementById('bairro').value = pedido.bairro || '';
+        document.getElementById('cep').value = pedido.cep || '';
+        document.getElementById('email').value = pedido.email || '';
+        document.getElementById('data_nascimento').value = pedido.data_nascimento ? pedido.data_nascimento.split('T')[0] : '';
+        document.getElementById('data_ordenacao').value = pedido.data_ordenacao ? pedido.data_ordenacao.split('T')[0] : '';
+        document.getElementById('diocese_paroquia').value = pedido.diocese_paroquia || '';
+        document.getElementById('telefone_paroquia').value = pedido.telefone_paroquia || '';
+        
+        document.getElementById('nome_produto').value = pedido.nome_produto || '';
+        document.getElementById('observacoes').value = pedido.observacoes || '';
+        document.getElementById('forma_pagamento').value = pedido.forma_pagamento || '';
+        document.getElementById('valor').value = pedido.valor || '';
+        document.getElementById('data_compra').value = pedido.data_compra ? pedido.data_compra.split('T')[0] : '';
+        document.getElementById('data_estimada_entrega').value = pedido.data_estimada_entrega ? pedido.data_estimada_entrega.split('T')[0] : '';
+        document.getElementById('status_confeccao').value = pedido.status_confeccao || 'Pendente';
+        document.getElementById('status_entrega').value = pedido.status_entrega || 'Preparando';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelarEdicao() {
+        document.getElementById('formVenda').reset();
+        document.getElementById('pedido_id').value = '';
+        document.getElementById('cliente_id').value = '';
+        document.getElementById('tituloForm').textContent = 'Novo Cadastro / Pedido';
+        document.getElementById('btnSalvar').textContent = 'Salvar Venda e Pedido';
+        document.getElementById('btnCancelar').style.display = 'none';
+        document.getElementById('blocoSelectCliente').style.display = 'block';
+        document.getElementById('avisoClienteBox').style.display = 'block';
     }
 
     async function excluirCadastro(id) {
