@@ -15,7 +15,6 @@ const pool = new Pool({
 // Configura as tabelas relacionalmente: Clientes e Pedidos
 async function configurarBanco() {
   try {
-    // 1. Tabela de Clientes com ID automático
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clientes (
         id SERIAL PRIMARY KEY,
@@ -33,7 +32,6 @@ async function configurarBanco() {
       );
     `);
 
-    // 2. Tabela de Pedidos vinculada ao cliente (cliente_id)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pedidos (
         id SERIAL PRIMARY KEY,
@@ -56,7 +54,7 @@ async function configurarBanco() {
 }
 configurarBanco();
 
-// Rota para buscar todos os clientes cadastrados (para o autocompletar)
+// Rota para buscar clientes
 app.get('/api/clientes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM clientes ORDER BY nome_razao_social ASC');
@@ -67,7 +65,7 @@ app.get('/api/clientes', async (req, res) => {
   }
 });
 
-// Rota para cadastrar venda (Salva ou reutiliza o cliente e cria o pedido)
+// Rota para cadastrar venda
 app.post('/api/vendas', async (req, res) => {
   const {
     nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
@@ -79,7 +77,6 @@ app.post('/api/vendas', async (req, res) => {
   try {
     let idClienteFinal = cliente_id;
 
-    // Se não veio um ID de cliente existente, criamos um novo cliente
     if (!idClienteFinal) {
       const clienteQuery = `
         INSERT INTO clientes (
@@ -96,7 +93,6 @@ app.post('/api/vendas', async (req, res) => {
       idClienteFinal = clienteRes.rows[0].id;
     }
 
-    // Cria o pedido vinculado ao ID do cliente
     const pedidoQuery = `
       INSERT INTO pedidos (
         cliente_id, nome_produto, observacoes, forma_pagamento, data_compra,
@@ -118,7 +114,8 @@ app.post('/api/vendas', async (req, res) => {
   }
 });
 
-// Rota para buscar os pedidos salvos (juntando com os dados do cliente)
+// Rota para buscar pedidos com ordenação personalizada:
+// Prioriza os que NÃO estão concluídos/entregues no topo, e depois por data decrescente.
 app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   try {
     const query = `
@@ -127,7 +124,12 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
              c.diocese_paroquia, c.telefone_paroquia
       FROM pedidos p
       JOIN clientes c ON p.cliente_id = c.id
-      ORDER BY p.id DESC;
+      ORDER BY 
+        CASE 
+          WHEN p.status_confeccao = 'Concluído' THEN 2 
+          ELSE 1 
+        END ASC, 
+        p.id DESC;
     `;
     const result = await pool.query(query);
     res.json(result.rows);
@@ -137,7 +139,7 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   }
 });
 
-// Rota para atualizar um pedido existente (incluindo alteração de status)
+// Rota para atualizar um pedido
 app.put('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -173,7 +175,7 @@ app.put('/api/vendas/:id', async (req, res) => {
   }
 });
 
-// Rota para excluir um pedido por ID
+// Rota para excluir um pedido
 app.delete('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
   try {
