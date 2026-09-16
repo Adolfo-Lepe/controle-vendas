@@ -25,6 +25,7 @@
         .status-ok { color: #27ae60; font-weight: bold; }
         .btn-excluir { background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; grid-column: auto; }
         .btn-excluir:hover { background-color: #c0392b; }
+        .aviso-cliente { grid-column: span 2; background: #e8f8f5; border: 1px solid #a3e4d7; padding: 10px; border-radius: 4px; color: #117a65; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -35,6 +36,20 @@
     <!-- Formulário de Cadastro -->
     <h2>Novo Cadastro / Pedido</h2>
     <form id="formVenda">
+        <div class="aviso-cliente">
+            💡 <strong>Dica:</strong> Se o cliente já comprou antes, selecione-o abaixo para preencher os dados automaticamente, ou deixe em branco para cadastrar um novo.
+        </div>
+
+        <div class="full-width">
+            <label>Selecione um Cliente Existente (Opcional):</label>
+            <select id="selectClienteExistente" onchange="preencherDadosCliente()">
+                <option value="">-- Novo Cliente / Digitar manualmente --</option>
+            </select>
+        </div>
+
+        <!-- ID oculto para sabermos se estamos usando um cliente existente -->
+        <input type="hidden" id="cliente_id">
+
         <div>
             <label>Nome / Razão Social:</label>
             <input type="text" id="nome_razao_social" required>
@@ -151,11 +166,67 @@
 </div>
 
 <script>
-    // Envio do formulário
+    let listaClientesGlobal = [];
+
+    async function carregarClientesDropdown() {
+        try {
+            const response = await fetch('/api/clientes');
+            listaClientesGlobal = await response.json();
+            
+            const select = document.getElementById('selectClienteExistente');
+            select.innerHTML = '<option value="">-- Novo Cliente / Digitar manualmente --</option>';
+            
+            listaClientesGlobal.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.nome_razao_social} ${c.cpf_cnpj ? '(' + c.cpf_cnpj + ')' : ''}`;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Erro ao carregar clientes:', err);
+        }
+    }
+
+    function preencherDadosCliente() {
+        const idSelecionado = document.getElementById('selectClienteExistente').value;
+        document.getElementById('cliente_id').value = idSelecionado;
+
+        if (!idSelecionado) {
+            document.getElementById('nome_razao_social').value = '';
+            document.getElementById('cpf_cnpj').value = '';
+            document.getElementById('endereco').value = '';
+            document.getElementById('cidade').value = '';
+            document.getElementById('bairro').value = '';
+            document.getElementById('cep').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('data_nascimento').value = '';
+            document.getElementById('data_ordenacao').value = '';
+            document.getElementById('diocese_paroquia').value = '';
+            document.getElementById('telefone_paroquia').value = '';
+            return;
+        }
+
+        const cliente = listaClientesGlobal.find(c => c.id == idSelecionado);
+        if (cliente) {
+            document.getElementById('nome_razao_social').value = cliente.nome_razao_social || '';
+            document.getElementById('cpf_cnpj').value = cliente.cpf_cnpj || '';
+            document.getElementById('endereco').value = cliente.endereco || '';
+            document.getElementById('cidade').value = cliente.cidade || '';
+            document.getElementById('bairro').value = cliente.bairro || '';
+            document.getElementById('cep').value = cliente.cep || '';
+            document.getElementById('email').value = cliente.email || '';
+            document.getElementById('data_nascimento').value = cliente.data_nascimento ? cliente.data_nascimento.split('T')[0] : '';
+            document.getElementById('data_ordenacao').value = cliente.data_ordenacao ? cliente.data_ordenacao.split('T')[0] : '';
+            document.getElementById('diocese_paroquia').value = cliente.diocese_paroquia || '';
+            document.getElementById('telefone_paroquia').value = cliente.telefone_paroquia || '';
+        }
+    }
+
     document.getElementById('formVenda').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const dados = {
+            cliente_id: document.getElementById('cliente_id').value || null,
             nome_razao_social: document.getElementById('nome_razao_social').value,
             cpf_cnpj: document.getElementById('cpf_cnpj').value,
             endereco: document.getElementById('endereco').value,
@@ -185,8 +256,10 @@
 
         const resultado = await response.json();
         if (resultado.sucesso) {
-            alert('Cadastrado com sucesso!');
+            alert('Pedido cadastrado com sucesso!');
             document.getElementById('formVenda').reset();
+            document.getElementById('cliente_id').value = '';
+            carregarClientesDropdown();
             carregarDados();
         } else {
             alert('Erro ao cadastrar: ' + resultado.erro);
@@ -195,7 +268,6 @@
 
     let meuGrafico = null;
 
-    // Carregar dados e montar tabela/gráfico
     async function carregarDados() {
         const response = await fetch('/api/pedidos');
         const pedidos = await response.json();
@@ -203,11 +275,9 @@
         const tbody = document.getElementById('tabelaPedidos');
         tbody.innerHTML = '';
 
-        // Agrupar vendas por mês para o gráfico
         const vendasPorMes = {};
 
         pedidos.forEach(p => {
-            // Linha da tabela
             const tr = document.createElement('tr');
             
             let classeConfeccao = 'status-ok';
@@ -228,18 +298,15 @@
             `;
             tbody.appendChild(tr);
 
-            // Processar dados para o gráfico de vendas mensais
             if (p.data_compra) {
-                const mesAno = p.data_compra.substring(0, 7); // Formato YYYY-MM
+                const mesAno = p.data_compra.substring(0, 7);
                 vendasPorMes[mesAno] = (vendasPorMes[mesAno] || 0) + parseFloat(p.valor);
             }
         });
 
-        // Ordenar os meses cronologicamente
         const mesesOrdenados = Object.keys(vendasPorMes).sort();
         const valoresTotais = mesesOrdenados.map(m => vendasPorMes[m]);
 
-        // Renderizar o gráfico
         const ctx = document.getElementById('graficoVendas').getContext('2d');
         if (meuGrafico) meuGrafico.destroy();
 
@@ -262,9 +329,8 @@
         });
     }
 
-    // Função para excluir um cadastro
     async function excluirCadastro(id) {
-        if (confirm('Tem certeza que deseja apagar este cadastro?')) {
+        if (confirm('Tem certeza que deseja apagar este pedido?')) {
             try {
                 const response = await fetch(`/api/vendas/${id}`, {
                     method: 'DELETE'
@@ -272,8 +338,9 @@
                 const data = await response.json();
                 
                 if (data.sucesso) {
-                    alert('Cadastro excluído com sucesso!');
-                    carregarDados(); // Atualiza a tabela e o gráfico
+                    alert('Pedido excluído com sucesso!');
+                    carregarClientesDropdown();
+                    carregarDados();
                 } else {
                     alert('Erro ao excluir: ' + data.erro);
                 }
@@ -284,6 +351,7 @@
         }
     }
 
+    carregarClientesDropdown();
     carregarDados();
 </script>
 
