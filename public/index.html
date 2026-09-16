@@ -23,6 +23,8 @@
         .status-atrasado { color: #c0392b; font-weight: bold; }
         .status-andamento { color: #d35400; font-weight: bold; }
         .status-ok { color: #27ae60; font-weight: bold; }
+        .btn-excluir { background-color: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; grid-column: auto; }
+        .btn-excluir:hover { background-color: #c0392b; }
     </style>
 </head>
 <body>
@@ -139,6 +141,7 @@
                 <th>Valor</th>
                 <th>Confecção</th>
                 <th>Entrega</th>
+                <th>Ações</th>
             </tr>
         </thead>
         <tbody id="tabelaPedidos">
@@ -219,6 +222,9 @@
                 <td>R$ ${parseFloat(p.valor).toFixed(2)}</td>
                 <td class="${classeConfeccao}">${p.status_confeccao}</td>
                 <td>${p.status_entrega}</td>
+                <td>
+                    <button class="btn-excluir" onclick="excluirCadastro(${p.id})">Excluir</button>
+                </td>
             `;
             tbody.appendChild(tr);
 
@@ -254,6 +260,28 @@
                 scales: { y: { beginAtZero: true } }
             }
         });
+    }
+
+    // Função para excluir um cadastro
+    async function excluirCadastro(id) {
+        if (confirm('Tem certeza que deseja apagar este cadastro?')) {
+            try {
+                const response = await fetch(`/api/vendas/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.sucesso) {
+                    alert('Cadastro excluído com sucesso!');
+                    carregarDados(); // Atualiza a tabela e o gráfico
+                } else {
+                    alert('Erro ao excluir: ' + data.erro);
+                }
+            } catch (err) {
+                console.error('Erro na requisição:', err);
+                alert('Erro de conexão ao tentar excluir.');
+            }
+        }
     }
 
     carregarDados();
