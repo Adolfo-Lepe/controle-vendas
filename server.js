@@ -106,5 +106,22 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   }
 });
 
+// Rota para excluir um pedido/venda por ID
+app.delete('/api/vendas/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM pedidos WHERE id = $1 RETURNING *', [id]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ sucesso: false, erro: 'Cadastro não encontrado.' });
+    }
+
+    res.json({ sucesso: true, mensagem: 'Cadastro excluído com sucesso!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ sucesso: false, erro: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
