@@ -12,7 +12,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Configura as tabelas relacionalmente: Clientes e Pedidos
 async function configurarBanco() {
   try {
     await pool.query(`
@@ -47,25 +46,22 @@ async function configurarBanco() {
       );
     `);
 
-    console.log("Banco de dados estruturado com sucesso (Clientes + Pedidos)!");
+    console.log("Banco de dados estruturado com sucesso!");
   } catch (err) {
     console.error("Erro ao configurar banco:", err);
   }
 }
 configurarBanco();
 
-// Rota para buscar clientes
 app.get('/api/clientes', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM clientes ORDER BY nome_razao_social ASC');
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Rota para cadastrar venda
 app.post('/api/vendas', async (req, res) => {
   const {
     nome_razao_social, cpf_cnpj, endereco, cidade, bairro, cep, email,
@@ -109,13 +105,11 @@ app.post('/api/vendas', async (req, res) => {
     const pedidoRes = await pool.query(pedidoQuery, pedidoValues);
     res.json({ sucesso: true, dados: pedidoRes.rows[0] });
   } catch (err) {
-    console.error(err);
     res.json({ sucesso: false, erro: err.message });
   }
 });
 
-// Rota para buscar pedidos com ordenação personalizada:
-// Prioriza os que NÃO estão concluídos/entregues no topo, e depois por data decrescente.
+// Busca pedidos com pendentes no topo
 app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   try {
     const query = `
@@ -134,12 +128,28 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Rota para atualizar um pedido
+// Rota rápida para atualizar apenas o status da confecção direto pela tabela
+app.patch('/api/pedidos/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status_confeccao } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE pedidos SET status_confeccao = $1 WHERE id = $2 RETURNING *',
+      [status_confeccao, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
+    }
+    res.json({ sucesso: true, dados: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ sucesso: false, erro: err.message });
+  }
+});
+
 app.put('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -163,31 +173,24 @@ app.put('/api/vendas/:id', async (req, res) => {
     ];
 
     const result = await pool.query(query, values);
-
     if (result.rowCount === 0) {
       return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
     }
-
     res.json({ sucesso: true, dados: result.rows[0] });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ sucesso: false, erro: err.message });
   }
 });
 
-// Rota para excluir um pedido
 app.delete('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query('DELETE FROM pedidos WHERE id = $1 RETURNING *', [id]);
-    
     if (result.rowCount === 0) {
       return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
     }
-
     res.json({ sucesso: true, mensagem: 'Pedido excluído com sucesso!' });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ sucesso: false, erro: err.message });
   }
 });
