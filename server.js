@@ -107,4 +107,4 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(Rodando na porta ${PORT}));
+app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
