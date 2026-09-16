@@ -339,12 +339,32 @@
             },
             options: {
                 responsive: true,
-                scales: { y: { beginAtZero: true } }
+                scales: { 
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            // Formata o eixo Y para exibir no formato R$ xx.xxx,xx se preferir
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                            }
+                        }
+                    } 
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            // Formata o balãozinho (tooltip) ao passar o mouse com o formato R$ xx.xxx,xx
+                            label: function(context) {
+                                let valor = context.raw || 0;
+                                return ' Total de Vendas: R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
+                }
             }
         });
     }
 
-    // Função que altera o status direto na linha da tabela
     async function alterarStatusDireto(id, novoStatus) {
         try {
             const response = await fetch(`/api/pedidos/${id}/status`, {
@@ -354,7 +374,6 @@
             });
             const resultado = await response.json();
             if (resultado.sucesso) {
-                // Recarrega os dados para atualizar a ordenação automaticamente (se virou concluído vai pro fim, se virou pendente sobe)
                 carregarDados();
             } else {
                 alert('Erro ao atualizar status: ' + resultado.erro);
