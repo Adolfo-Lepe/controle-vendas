@@ -137,6 +137,42 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   }
 });
 
+// Rota para atualizar um pedido existente (incluindo alteração de status)
+app.put('/api/vendas/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    nome_produto, observacoes, forma_pagamento, data_compra,
+    data_estimada_entrega, valor, status_confeccao, status_entrega
+  } = req.body;
+
+  try {
+    const query = `
+      UPDATE pedidos 
+      SET nome_produto = $1, observacoes = $2, forma_pagamento = $3, 
+          data_compra = $4, data_estimada_entrega = $5, valor = $6, 
+          status_confeccao = $7, status_entrega = $8
+      WHERE id = $9
+      RETURNING *;
+    `;
+    const values = [
+      nome_produto, observacoes, forma_pagamento, data_compra || null,
+      data_estimada_entrega || null, valor ? parseFloat(valor) : 0,
+      status_confeccao, status_entrega, id
+    ];
+
+    const result = await pool.query(query, values);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ sucesso: false, erro: 'Pedido não encontrado.' });
+    }
+
+    res.json({ sucesso: true, dados: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ sucesso: false, erro: err.message });
+  }
+});
+
 // Rota para excluir um pedido por ID
 app.delete('/api/vendas/:id', async (req, res) => {
   const { id } = req.params;
