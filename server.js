@@ -12,39 +12,53 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Criar a tabela automaticamente se ela não existir no Neon
-async function criarTabela() {
+// Garante que a tabela tem todas as colunas exigidas pelo formulário
+async function configurarBanco() {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS pedidos (
-        id SERIAL PRIMARY KEY,
-        nome_razao_social TEXT,
-        cpf_cnpj TEXT,
-        endereco TEXT,
-        cidade TEXT,
-        bairro TEXT,
-        cep TEXT,
-        email TEXT,
-        data_nascimento DATE,
-        data_ordenacao DATE,
-        diocese_paroquia TEXT,
-        telefone_paroquia TEXT,
-        nome_produto TEXT,
-        observacoes TEXT,
-        forma_pagamento TEXT,
-        data_compra DATE,
-        data_estimada_entrega DATE,
-        valor NUMERIC,
-        status_confeccao TEXT,
-        status_entrega TEXT
+        id SERIAL PRIMARY KEY
       );
     `);
-    console.log("Tabela 'pedidos' verificada/criada com sucesso no Neon!");
+
+    // Lista de colunas e tipos que a tabela precisa ter
+    const colunas = [
+      "nome_razao_social TEXT",
+      "cpf_cnpj TEXT",
+      "endereco TEXT",
+      "cidade TEXT",
+      "bairro TEXT",
+      "cep TEXT",
+      "email TEXT",
+      "data_nascimento DATE",
+      "data_ordenacao DATE",
+      "diocese_paroquia TEXT",
+      "telefone_paroquia TEXT",
+      "nome_produto TEXT",
+      "observacoes TEXT",
+      "forma_pagamento TEXT",
+      "data_compra DATE",
+      "data_estimada_entrega DATE",
+      "valor NUMERIC",
+      "status_confeccao TEXT",
+      "status_entrega TEXT"
+    ];
+
+    // Adiciona cada coluna caso ela ainda não exista na tabela
+    for (let colunaDef of colunas) {
+      const nomeColuna = colunaDef.split(" ")[0];
+      const tipoColuna = colunaDef.split(" ")[1];
+      await pool.query(`
+        ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ${nomeColuna} ${tipoColuna};
+      `).catch(() => {}); // Ignora se já existir
+    }
+
+    console.log("Banco de dados sincronizado com sucesso!");
   } catch (err) {
-    console.error("Erro ao criar tabela:", err);
+    console.error("Erro ao configurar banco:", err);
   }
 }
-criarTabela();
+configurarBanco();
 
 // Rota para cadastrar (POST) compatível com o seu HTML
 app.post('/api/vendas', async (req, res) => {
@@ -81,7 +95,7 @@ app.post('/api/vendas', async (req, res) => {
   }
 });
 
-// Rotas para buscar os pedidos salvos (atendendo tanto /api/pedidos quanto /api/vendas)
+// Rotas para buscar os pedidos salvos
 app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM pedidos ORDER BY id DESC');
@@ -93,4 +107,4 @@ app.get(['/api/pedidos', '/api/vendas'], async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(Rodando na porta ${PORT}));
